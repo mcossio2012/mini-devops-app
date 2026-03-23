@@ -7,17 +7,15 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: 192.168.1.235
-          username: adminpi
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd /home/adminpi/mini-devops-app
-            git pull
-            docker compose down
-            docker compose up -d --build
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy with Docker Compose
+        run:
+          cd /home/adminpi/mini-devops-app
+          git pull
+          docker compose down
+          docker compose up -d --build
