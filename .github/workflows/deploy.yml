@@ -15,7 +15,5 @@ jobs:
 
       - name: Deploy with Docker Compose
         run: |
-          cd /home/adminpi/mini-devops-app
-          git pull
           docker compose down
           docker compose up -d --build
