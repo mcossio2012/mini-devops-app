@@ -25,10 +25,15 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Set image tag
+        id: vars
+        run: echo "TAG=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
       - name: Build and push multi-arch image
         run: |
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/mini-devops-app:${{ steps.vars.outputs.TAG }} \
             -t ${{ secrets.DOCKERHUB_USERNAME }}/mini-devops-app:latest \
             --push .
 
@@ -39,7 +44,8 @@ jobs:
     steps:
       - name: Pull and run container
         run: |
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/mini-devops-app:latest
+          TAG=$(git rev-parse --short HEAD)
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/mini-devops-app:$TAG
           docker stop app || true
           docker rm app || true
-          docker run -d -p 5000:5000 --name app ${{ secrets.DOCKERHUB_USERNAME }}/mini-devops-app:latest
+          docker run -d -p 5000:5000 --name app ${{ secrets.DOCKERHUB_USERNAME }}/mini-devops-app:$TAG
