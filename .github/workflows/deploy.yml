@@ -39,54 +39,67 @@ jobs:
             -t ${{ secrets.DOCKERHUB_USERNAME }}/mini-devops-app:latest \
             --push .
 
-  deploy:
-    runs-on: self-hosted
-    needs: build
+deploy:
+  runs-on: self-hosted
+  needs: build
 
-    steps:
-      - name: Deploy with smart rollback
-        run: |
-          TAG=${{ needs.build.outputs.tag }}
-          IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/mini-devops-app
+  steps:
+    - name: Deploy with smart rollback
+      run: |
+        TAG=${{ needs.build.outputs.tag }}
+        IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/mini-devops-app
 
-          echo "Deployando versión $TAG"
+        echo "Deployando versión $TAG"
 
-          # 1. Guardar versión actual
-          CURRENT=$(docker ps --format "{{.Image}}" | grep mini-devops-app || true)
-          echo "Versión actual: $CURRENT"
+        # 1. Guardar versión actual
+        CURRENT=$(docker ps --format "{{.Image}}" | grep mini-devops-app || true)
+        echo "Versión actual: $CURRENT"
 
-          # 2. Traer nueva imagen
-          docker pull $IMAGE:$TAG
+        # 2. Traer nueva imagen
+        docker pull $IMAGE:$TAG
 
-          # 3. Levantar nueva versión
-          docker stop app || true
-          docker rm app || true
-          docker run -d -p 5000:5000 --name app $IMAGE:$TAG
+        # 3. Levantar nueva versión
+        docker stop app || true
+        docker rm app || true
+        docker run -d -p 5000:5000 --name app $IMAGE:$TAG
 
-          # 4. Esperar a que arranque
-          echo "Esperando 10 segundos..."
-          sleep 10
+        # 4. Esperar a que esté healthy
+        echo "Esperando a que el container esté healthy..."
 
-          # 5. Verificar health
+        for i in {1..10}; do
           STATUS=$(docker inspect --format='{{.State.Health.Status}}' app 2>/dev/null || echo "fail")
 
-          echo "Estado del container: $STATUS"
+          echo "Intento $i - Estado: $STATUS"
 
-          # 6. Si falla → rollback
-          if [ "$STATUS" != "healthy" ]; then
-            echo "❌ Falló el deploy, haciendo rollback..."
-
-            docker stop app || true
-            docker rm app || true
-
-            if [ -n "$CURRENT" ]; then
-              docker run -d -p 5000:5000 --name app $CURRENT
-              echo "✅ Volvió a $CURRENT"
-            else
-              echo "⚠️ No había versión previa"
-            fi
-
-            exit 1
+          if [ "$STATUS" = "healthy" ]; then
+            echo "✅ Container healthy"
+            break
           fi
 
-          echo "✅ Deploy OK"
+          # Si ya está unhealthy, no seguimos esperando
+          if [ "$STATUS" = "unhealthy" ]; then
+            echo "❌ Container unhealthy detectado"
+            break
+          fi
+
+          sleep 3
+        done
+
+        # 5. Validación final
+        if [ "$STATUS" != "healthy" ]; then
+          echo "❌ Falló el deploy, haciendo rollback..."
+
+          docker stop app || true
+          docker rm app || true
+
+          if [ -n "$CURRENT" ]; then
+            docker run -d -p 5000:5000 --name app $CURRENT
+            echo "✅ Volvió a $CURRENT"
+          else
+            echo "⚠️ No había versión previa"
+          fi
+
+          exit 1
+        fi
+
+        echo "✅ Deploy OK"
