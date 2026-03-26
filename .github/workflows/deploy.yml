@@ -52,7 +52,7 @@ jobs:
           echo "Deployando versión $TAG"
 
           # 1. Guardar versión actual
-          CURRENT=$(docker ps --format "{{.Image}}" | grep mini-devops-app || true}
+          CURRENT=$(docker ps --format "{{.Image}}" | grep mini-devops-app || true)
           echo "Versión actual: $CURRENT"
 
           # 2. Traer nueva imagen
