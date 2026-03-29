@@ -82,7 +82,7 @@ jobs:
               break
             fi
 
-            sleep 3
+            sleep 10
           done
 
           # 5. Validación final
