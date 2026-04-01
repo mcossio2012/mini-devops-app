@@ -8,7 +8,7 @@ app = Flask(__name__)
 @app.route("/")
 def home():
     return f"""
-    <h1>Hola Maxi 🚀 CI/CD funcionando</h1>
+    <h1>VERSION NUEVA 🔥</h1>
     <p>Hostname: {socket.gethostname()}</p>
     <p>Fecha: {datetime.datetime.now()}</p>
     """
