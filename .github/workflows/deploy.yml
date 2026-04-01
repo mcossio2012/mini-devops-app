@@ -44,33 +44,37 @@ jobs:
     needs: build
 
     steps:
-      - name: Blue/Green Deploy
+      - name: Blue/Green + Nginx switch (real)
         run: |
           TAG=${{ needs.build.outputs.tag }}
           IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/mini-devops-app
 
           echo "Deployando versión $TAG"
 
-          # Detectar entorno actual
-          if docker ps --format "{{.Names}}" | grep -q app_blue; then
-            CURRENT=app_blue
-            NEW=app_green
+          # Detectar backend activo
+          ACTIVE=$(grep -o 'app_[a-z]*' /home/adminpi/actions-runner/active_backend.conf)
+
+          if [ "$ACTIVE" = "app_blue" ]; then
+            NEW="app_green"
           else
-            CURRENT=app_green
-            NEW=app_blue
+            NEW="app_blue"
           fi
 
-          echo "Actual: $CURRENT"
+          echo "Activo: $ACTIVE"
           echo "Nuevo: $NEW"
 
-          # Levantar nueva versión en puerto alternativo
+          # Pull imagen
           docker pull $IMAGE:$TAG
 
+          # Levantar nueva versión
           docker rm -f $NEW || true
-          docker run -d -p 5001:5000 --name $NEW $IMAGE:$TAG
+          docker run -d \
+            --name $NEW \
+            --network devops-net \
+            $IMAGE:$TAG
 
-          # Esperar health
-          echo "Esperando healthcheck..."
+          # Esperar healthcheck
+          echo "Esperando health..."
 
           for i in {1..10}; do
             STATUS=$(docker inspect --format='{{.State.Health.Status}}' $NEW 2>/dev/null || echo "fail")
@@ -78,32 +82,33 @@ jobs:
             echo "Intento $i - Estado: $STATUS"
 
             if [ "$STATUS" = "healthy" ]; then
-              echo "✅ Nueva versión OK"
+              echo "Nueva versión OK"
               break
             fi
 
             if [ "$STATUS" = "unhealthy" ]; then
-              echo "❌ Nueva versión falló"
+              echo "Nueva versión falló"
               break
             fi
 
             sleep 10
           done
 
-          # Si falla → no tocamos la actual
+          # Si falla → abortar
           if [ "$STATUS" != "healthy" ]; then
-            echo "❌ Deploy cancelado, la actual sigue viva"
-            docker rm -f $NEW || true
+            echo "❌ Deploy cancelado"
+            docker rm -f $NEW
             exit 1
           fi
 
-          # Switch de tráfico
-          echo "🔄 Switcheando tráfico..."
+          # Switch nginx (ACÁ ESTÁ LA MAGIA)
+          echo "🔄 Switcheando tráfico a $NEW"
 
-          docker rm -f app || true
-          docker run -d -p 5000:5000 --name app $IMAGE:$TAG
+          echo "server $NEW:5000;" > /home/adminpi/actions-runner/active_backend.conf
 
-          # Borrar vieja
-          docker rm -f $CURRENT || true
+          docker exec nginx nginx -s reload
 
-          echo "✅ Deploy sin downtime completado"
+          # Borrar viejo
+          docker rm -f $ACTIVE || true
+
+          echo "✅ Deploy sin downtime real"
