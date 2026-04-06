@@ -13,20 +13,6 @@ services:
       - devops-net
     restart: unless-stopped
 
-  app_blue:
-    image: ${DOCKERHUB_USERNAME}/mini-devops-app:latest
-    container_name: app_blue
-    networks:
-      - devops-net
-    restart: unless-stopped
-
-  app_green:
-    image: ${DOCKERHUB_USERNAME}/mini-devops-app:latest
-    container_name: app_green
-    networks:
-      - devops-net
-    restart: unless-stopped
-
 networks:
   devops-net:
     driver: bridge
